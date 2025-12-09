@@ -6,12 +6,13 @@ import {
   DEFAULT_MAP_STYLE, MapStyle, 
   DEFAULT_LABEL_SETTINGS, LabelSettings,
   DEFAULT_TITLE_SETTINGS, TitleSettings,
-  Annotation
+  Annotation, MapDataState
 } from './types';
 
 const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [mapStyle, setMapStyle] = useState<MapStyle>(DEFAULT_MAP_STYLE);
+  const [mapData, setMapData] = useState<MapDataState | null>(null);
   
   // Text & Annotation State
   const [labelSettings, setLabelSettings] = useState<LabelSettings>(DEFAULT_LABEL_SETTINGS);
@@ -58,6 +59,8 @@ const App: React.FC = () => {
           toggleSidebar={toggleSidebar} 
           mapStyle={mapStyle}
           setMapStyle={setMapStyle}
+          mapData={mapData}
+          setMapData={setMapData}
           // Text Props
           labelSettings={labelSettings}
           setLabelSettings={setLabelSettings}
@@ -71,6 +74,8 @@ const App: React.FC = () => {
         <div className="flex-1 h-full min-w-0 transition-all duration-500 ease-in-out relative">
            <MapPreview 
              mapStyle={mapStyle} 
+             mapData={mapData}
+             setMapData={setMapData}
              labelSettings={labelSettings}
              titleSettings={titleSettings}
              annotations={annotations}

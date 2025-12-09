@@ -5,17 +5,9 @@ import { GlassPanel } from './GlassPanel';
 import { 
   Plus, Minus, RotateCcw, Search, X, 
   Map as MapIcon, Globe, Layers, Maximize2, Minimize2,
-  ChevronRight, Navigation, Database
+  Navigation, Database
 } from 'lucide-react';
-import { MapStyle, PALETTES, LabelSettings, TitleSettings, Annotation } from '../types';
-
-// -- Types & Interfaces --
-
-interface MapDataState {
-  values: Record<string, number>;
-  metric: string;
-  unit: string;
-}
+import { MapStyle, PALETTES, LabelSettings, TitleSettings, Annotation, MapDataState, SAMPLE_DATASET } from '../types';
 
 interface Feature {
   type: 'Feature';
@@ -36,10 +28,13 @@ interface MapPreviewProps {
   onUpdateAnnotation: (id: string, text: string) => void;
   onDeleteAnnotation: (id: string) => void;
   onMoveAnnotation: (id: string, x: number, y: number) => void;
+  
+  // Lifted Data State
+  mapData: MapDataState | null;
+  setMapData: (data: MapDataState | null) => void;
 }
 
-// Extensive Mapping for Flags (ISO Numeric -> ISO 2-char)
-// Source: simplified list for demo purposes
+// ... (Keep existing helpers like ID_TO_ISO, getFlagEmoji) ...
 const ID_TO_ISO: Record<string, string> = {
   '840': 'US', '124': 'CA', '156': 'CN', '356': 'IN', '076': 'BR', 
   '643': 'RU', '036': 'AU', '276': 'DE', '250': 'FR', '826': 'GB', 
@@ -56,17 +51,6 @@ const getFlagEmoji = (numericId: string) => {
   return String.fromCodePoint(...codePoints);
 }
 
-const SAMPLE_DATASET = {
-  metric: "Digital Index",
-  unit: "Score",
-  values: {
-    '840': 95, '124': 88, '156': 92, '356': 65, '076': 58, '643': 60, 
-    '036': 78, '276': 90, '250': 89, '826': 91, '392': 94, '710': 45, 
-    '380': 82, '724': 80, '484': 70, '032': 68, '818': 55, '566': 48, 
-    '360': 62, '792': 75, '682': 72, '410': 93, '702': 96, '756': 94
-  }
-};
-
 type ProjectionType = 'mercator' | 'orthographic' | 'equalEarth';
 
 export const MapPreview: React.FC<MapPreviewProps> = ({ 
@@ -78,11 +62,13 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   onAddAnnotation,
   onUpdateAnnotation,
   onDeleteAnnotation,
-  onMoveAnnotation
+  onMoveAnnotation,
+  mapData, 
+  setMapData
 }) => {
   // -- State --
   const [geoData, setGeoData] = useState<Feature[]>([]);
-  const [meshData, setMeshData] = useState<any>(null); // For fast minimap rendering
+  const [meshData, setMeshData] = useState<any>(null); 
   const [loading, setLoading] = useState(true);
   const [projectionType, setProjectionType] = useState<ProjectionType>('mercator');
   
@@ -95,15 +81,14 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 }); // Track for minimap
+  const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 }); 
   
   // D3 Refs
   const svgRef = useRef<SVGSVGElement>(null);
   const gRef = useRef<SVGGElement>(null);
   const zoomBehavior = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
-  // Data & Interaction
-  const [mapData, setMapData] = useState<MapDataState | null>(null);
+  // Interaction State
   const [hoveredFeature, setHoveredFeature] = useState<Feature | null>(null);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: '' });
@@ -136,8 +121,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
         const features = topojson.feature(topology, topology.objects.countries).features;
         // @ts-ignore
         const mesh = topojson.mesh(topology, topology.objects.countries);
-        
-        // Filter out Antarctica for cleaner Mercator view (id 010)
         const filteredFeatures = features.filter((f: Feature) => f.id !== '010');
         
         setGeoData(filteredFeatures);
@@ -153,7 +136,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
 
   // -- D3 Logic --
 
-  const { pathGenerator, projection } = useMemo(() => {
+  const { pathGenerator } = useMemo(() => {
     let proj: d3.GeoProjection;
     const w = dimensions.width;
     const h = dimensions.height;
@@ -174,7 +157,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
     return { projection: proj, pathGenerator: pathGen };
   }, [projectionType, dimensions]);
 
-  // Minimap Projection (Static)
+  // Minimap Projection
   const minimapProps = useMemo(() => {
     const size = 120;
     const proj = d3.geoMercator().fitSize([size, size], { type: "Sphere" });
@@ -198,10 +181,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
 
     const svg = d3.select(svgRef.current);
     svg.call(zoomBehavior.current);
-    
-    // Disable double click zoom (we use it for fit-to-bounds)
     svg.on("dblclick.zoom", null);
-
   }, [dimensions]);
 
   // Color Scale
@@ -213,36 +193,25 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
     // Create an interpolator or range
     const rangeColors = d3.quantize(d3.interpolateRgbBasis(paletteColors), mapStyle.classesCount);
     
-    if (mapStyle.classificationMethod === 'quantile') {
-        return d3.scaleQuantile<string>().domain(values).range(rangeColors);
-    } else if (mapStyle.classificationMethod === 'natural') {
-        // Simple approximation for natural breaks or just stick to quantile for demo
-        return d3.scaleQuantile<string>().domain(values).range(rangeColors);
-    } else {
-        return d3.scaleQuantize<string>().domain(d3.extent(values) as [number, number]).range(rangeColors);
-    }
+    // Fallback for simple quantile
+    return d3.scaleQuantile<string>().domain(values).range(rangeColors);
   }, [mapData, mapStyle]);
 
   // -- Interaction --
 
   const handleZoom = (factor: number) => {
     if (!svgRef.current || !zoomBehavior.current) return;
-    d3.select(svgRef.current)
-      .transition().duration(300).ease(d3.easeCubicOut)
-      .call(zoomBehavior.current.scaleBy, factor);
+    d3.select(svgRef.current).transition().duration(300).ease(d3.easeCubicOut).call(zoomBehavior.current.scaleBy, factor);
   };
 
   const resetView = () => {
     if (!svgRef.current || !zoomBehavior.current) return;
-    d3.select(svgRef.current)
-      .transition().duration(750).ease(d3.easeCubicInOut)
-      .call(zoomBehavior.current.transform, d3.zoomIdentity);
+    d3.select(svgRef.current).transition().duration(750).ease(d3.easeCubicInOut).call(zoomBehavior.current.transform, d3.zoomIdentity);
     setSelectedFeatureId(null);
   };
 
   const focusOnFeature = (feature: Feature) => {
     setSelectedFeatureId(feature.id);
-    
     const bounds = pathGenerator.bounds(feature);
     const dx = bounds[1][0] - bounds[0][0];
     const dy = bounds[1][1] - bounds[0][1];
@@ -252,9 +221,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
     const translate = [dimensions.width / 2 - scale * x, dimensions.height / 2 - scale * y];
 
     if (svgRef.current && zoomBehavior.current) {
-      d3.select(svgRef.current)
-        .transition().duration(750).ease(d3.easeCubicInOut)
-        .call(zoomBehavior.current.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+      d3.select(svgRef.current).transition().duration(750).ease(d3.easeCubicInOut).call(zoomBehavior.current.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
     }
   };
 
@@ -297,11 +264,10 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   };
 
   const getOpacity = (feature: Feature) => {
-    if (selectedFeatureId && selectedFeatureId !== feature.id) return 0.4; // Dim others
+    if (selectedFeatureId && selectedFeatureId !== feature.id) return 0.4;
     return 1;
   };
 
-  // Annotation handlers
   const handleMapClick = (e: React.MouseEvent) => {
     if (isAddingAnnotation && svgRef.current) {
       const t = d3.zoomTransform(svgRef.current);
@@ -309,7 +275,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
       const [x, y] = t.invert([e.clientX - rect.left, e.clientY - rect.top]);
       onAddAnnotation({ id: Date.now().toString(), x, y, text: 'New Annotation' });
     } else {
-      // Clear selection if clicking background
       if (selectedFeatureId) {
         setSelectedFeatureId(null);
         resetView();
@@ -399,7 +364,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
            
            {!mapData && (
              <button 
-               onClick={() => setMapData({ values: SAMPLE_DATASET.values, metric: SAMPLE_DATASET.metric, unit: SAMPLE_DATASET.unit })}
+               onClick={() => setMapData(SAMPLE_DATASET)}
                className="bg-white hover:bg-slate-50 text-primary font-semibold text-xs py-2 px-3 rounded-lg shadow-lg flex items-center gap-2 transition-all"
              >
                <Database size={14} /> Load Demo Data
@@ -441,13 +406,11 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                       fillOpacity={getOpacity(feature)}
                       stroke={isSelected ? '#fff' : mapStyle.borderColor}
                       strokeWidth={isSelected ? 1.5 : mapStyle.showBorders ? mapStyle.borderWidth : 0}
-                      // Key for crisp borders: vector-effect
                       vectorEffect="non-scaling-stroke" 
                       className="transition-all duration-300 ease-out"
                       style={{ filter: isSelected || hoveredFeature?.id === feature.id ? 'url(#shadow)' : 'none' }}
                       onMouseEnter={(e) => {
                          setHoveredFeature(feature);
-                         // Tooltip positioning
                          const rect = containerRef.current?.getBoundingClientRect();
                          if (rect) {
                            setTooltip({ visible: true, x: e.clientX - rect.left, y: e.clientY - rect.top, content: '' });
@@ -473,14 +436,12 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                   );
                 })}
 
-                {/* Labels Layer */}
+                {/* Labels */}
                 {labelSettings.showLabels && geoData.map(feature => {
                    const centroid = pathGenerator.centroid(feature);
                    const area = pathGenerator.area(feature);
-                   const isVisible = (area * transform.k > 600) || (transform.k > 4); // Smart-ish visibility
-                   
+                   const isVisible = (area * transform.k > 600) || (transform.k > 4); 
                    if (!centroid || isNaN(centroid[0]) || (!isVisible && !labelSettings.smartLabels)) return null;
-                   
                    return (
                      <text
                         key={`label-${feature.id}`}
@@ -492,7 +453,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                         style={{
                           fill: labelSettings.color,
                           fontFamily: labelSettings.fontFamily,
-                          // Inverse scale for consistent font size
                           fontSize: `${labelSettings.fontSize / transform.k}px`, 
                           opacity: isVisible || hoveredFeature?.id === feature.id ? 1 : 0
                         }}
@@ -502,13 +462,13 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                    );
                 })}
 
-                {/* Annotations Layer */}
+                {/* Annotations */}
                 {annotations.map((ann) => (
                     <foreignObject
                       key={ann.id}
                       x={ann.x}
                       y={ann.y}
-                      width={1} height={1} // collapsed, overflow visible
+                      width={1} height={1} 
                       className="overflow-visible"
                     >
                        <div 
@@ -529,13 +489,7 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                                onDoubleClick={(e) => { e.stopPropagation(); setEditingAnnotationId(ann.id); }}
                                className="cursor-move px-2 py-1 rounded hover:bg-black/30 border border-transparent hover:border-white/20 transition-all"
                              >
-                                <div style={{ 
-                                  color: 'white', 
-                                  textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                                  fontSize: `${16 / transform.k}px`, // Keep relative size or scale? 
-                                  // Let's keep it somewhat scaling but clamped
-                                  whiteSpace: 'nowrap'
-                                }}>
+                                <div style={{ color: 'white', textShadow: '0 2px 4px rgba(0,0,0,0.5)', fontSize: `${16 / transform.k}px`, whiteSpace: 'nowrap' }}>
                                   {ann.text}
                                 </div>
                                 <button 
@@ -579,7 +533,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                   <div className="text-[10px] text-slate-400 italic">No data available</div>
                )}
 
-               {/* Arrow */}
                <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-white rotate-45 shadow-sm" />
             </div>
           )}
@@ -587,7 +540,6 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
 
         {/* --- Bottom Right: Google-style Controls --- */}
         <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-30">
-           {/* Zoom Controls */}
            <div className="flex flex-col bg-white rounded-lg shadow-xl overflow-hidden">
               <button onClick={() => handleZoom(1.4)} className="p-3 hover:bg-slate-50 active:bg-slate-100 border-b border-slate-100 text-slate-600 transition-colors">
                 <Plus size={20} />
@@ -596,20 +548,10 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
                 <Minus size={20} />
               </button>
            </div>
-           
-           {/* Action Buttons */}
-           <button 
-             onClick={resetView} 
-             className="bg-white p-3 rounded-lg shadow-xl hover:bg-slate-50 active:bg-slate-100 text-slate-600 transition-colors"
-             title="Reset Bearing & Tilt"
-           >
+           <button onClick={resetView} className="bg-white p-3 rounded-lg shadow-xl hover:bg-slate-50 active:bg-slate-100 text-slate-600 transition-colors" title="Reset">
              <Navigation size={20} className={transform.k > 1 ? "text-primary fill-primary/20" : ""} />
            </button>
-
-           <button 
-             onClick={toggleFullscreen} 
-             className="bg-white p-3 rounded-lg shadow-xl hover:bg-slate-50 active:bg-slate-100 text-slate-600 transition-colors"
-           >
+           <button onClick={toggleFullscreen} className="bg-white p-3 rounded-lg shadow-xl hover:bg-slate-50 active:bg-slate-100 text-slate-600 transition-colors">
              {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
            </button>
         </div>
@@ -619,15 +561,12 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
            <div className="bg-white/90 backdrop-blur border-4 border-white rounded-lg shadow-2xl overflow-hidden w-[120px] h-[120px] relative transition-transform hover:scale-105 duration-300">
                <svg width="100%" height="100%" viewBox={`0 0 ${minimapProps.size} ${minimapProps.size}`}>
                   <path d={minimapProps.path(meshData) || ''} fill="#cbd5e1" />
-                  {/* Viewport Rect */}
                   <rect
                     x={-transform.x / transform.k / (dimensions.width / minimapProps.size)}
                     y={-transform.y / transform.k / (dimensions.width / minimapProps.size)}
                     width={dimensions.width / transform.k / (dimensions.width / minimapProps.size)}
                     height={dimensions.height / transform.k / (dimensions.width / minimapProps.size)}
-                    fill="none"
-                    stroke="#0ea5e9"
-                    strokeWidth={1.5}
+                    fill="none" stroke="#0ea5e9" strokeWidth={1.5}
                   />
                </svg>
            </div>

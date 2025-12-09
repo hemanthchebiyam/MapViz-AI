@@ -37,6 +37,26 @@ export interface Annotation {
   text: string;
 }
 
+export interface MapDataState {
+  values: Record<string, number>;
+  metric: string;
+  unit: string;
+}
+
+export interface Insight {
+  type: 'trend' | 'outlier' | 'missing';
+  text: string;
+  value?: string;
+}
+
+export interface Suggestion {
+  id: string;
+  title: string;
+  description: string;
+  action: () => void;
+  icon?: any;
+}
+
 export const PALETTES: Record<PaletteType, string[]> = {
   ocean: ['#f0f9ff', '#bae6fd', '#0ea5e9', '#0284c7', '#0c4a6e'],
   sunset: ['#fefce8', '#fde047', '#f97316', '#dc2626', '#7f1d1d'],
@@ -71,4 +91,16 @@ export const DEFAULT_TITLE_SETTINGS: TitleSettings = {
   alignment: 'center',
   color: '#ffffff',
   size: 'large',
+};
+
+// Sample Data for "Auto-Fix" simulation
+export const SAMPLE_DATASET: MapDataState = {
+  metric: "Digital Index",
+  unit: "Score",
+  values: {
+    '840': 95, '124': 88, '156': 92, '356': 65, '076': 58, '643': 60, 
+    '036': 78, '276': 90, '250': 89, '826': 91, '392': 94, '710': 45, 
+    '380': 82, '724': 80, '484': 70, '032': 68, '818': 55, '566': 48, 
+    '360': 62, '792': 75, '682': 72, '410': 93, '702': 96, '756': 94
+  }
 };
