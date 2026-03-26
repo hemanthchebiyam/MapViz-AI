@@ -118,7 +118,21 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
         const response = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
         const topology = await response.json();
         // @ts-ignore
-        const features = topojson.feature(topology, topology.objects.countries).features;
+        const allFeatures = topojson.feature(topology, topology.objects.countries).features;
+        
+        const seenIds = new Set<string>();
+        const features = allFeatures
+          .filter((f: any) => f.id !== undefined && f.id !== null)
+          .map((f: any) => ({
+            ...f,
+            id: String(f.id).padStart(3, '0')
+          }))
+          .filter((f: any) => {
+            if (seenIds.has(f.id)) return false;
+            seenIds.add(f.id);
+            return true;
+          });
+        
         // @ts-ignore
         const mesh = topojson.mesh(topology, topology.objects.countries);
         const filteredFeatures = features.filter((f: Feature) => f.id !== '010');
@@ -187,11 +201,13 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
   // Color Scale
   const colorScale = useMemo(() => {
     if (!mapData) return null;
-    const values = Object.values(mapData.values);
+    const values = Object.values(mapData.values).filter(v => typeof v === 'number' && !isNaN(v));
+    if (values.length === 0) return null;
+
     const paletteColors = PALETTES[mapStyle.palette];
     
     // Create an interpolator or range
-    const rangeColors = d3.quantize(d3.interpolateRgbBasis(paletteColors), mapStyle.classesCount);
+    const rangeColors = d3.quantize(d3.interpolateRgbBasis(paletteColors), Math.max(2, mapStyle.classesCount));
     
     // Fallback for simple quantile
     return d3.scaleQuantile<string>().domain(values).range(rangeColors);
@@ -259,7 +275,10 @@ export const MapPreview: React.FC<MapPreviewProps> = ({
 
   const getFill = (feature: Feature) => {
     if (selectedFeatureId === feature.id) return '#06b6d4';
-    if (mapData && colorScale && mapData.values[feature.id] !== undefined) return colorScale(mapData.values[feature.id]);
+    if (mapData && colorScale) {
+      const val = mapData.values[feature.id];
+      if (val !== undefined) return colorScale(val);
+    }
     return '#1e293b';
   };
 

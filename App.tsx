@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MapPreview } from './components/MapPreview';
+import { TemplateGallery } from './components/TemplateGallery';
 import { 
   DEFAULT_MAP_STYLE, MapStyle, 
   DEFAULT_LABEL_SETTINGS, LabelSettings,
   DEFAULT_TITLE_SETTINGS, TitleSettings,
-  Annotation, MapDataState
+  Annotation, MapDataState, MapTemplate
 } from './types';
 
 const App: React.FC = () => {
@@ -19,6 +20,9 @@ const App: React.FC = () => {
   const [titleSettings, setTitleSettings] = useState<TitleSettings>(DEFAULT_TITLE_SETTINGS);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [isAddingAnnotation, setIsAddingAnnotation] = useState(false);
+
+  // Template Gallery State
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
@@ -39,6 +43,16 @@ const App: React.FC = () => {
 
   const moveAnnotation = (id: string, x: number, y: number) => {
     setAnnotations(annotations.map(a => a.id === id ? { ...a, x, y } : a));
+  };
+
+  // Template Handler
+  const handleLoadTemplate = (template: MapTemplate) => {
+    setMapStyle(template.style);
+    setMapData(template.data);
+    setTitleSettings(template.titleSettings);
+    // Reset annotations on template load? Optional. Let's keep them for now or clear.
+    // setAnnotations([]); 
+    setIsGalleryOpen(false);
   };
 
   return (
@@ -68,6 +82,8 @@ const App: React.FC = () => {
           setTitleSettings={setTitleSettings}
           isAddingAnnotation={isAddingAnnotation}
           setIsAddingAnnotation={setIsAddingAnnotation}
+          // Gallery
+          onOpenGallery={() => setIsGalleryOpen(true)}
         />
 
         {/* Right Panel - Map */}
@@ -95,6 +111,18 @@ const App: React.FC = () => {
         </div>
 
       </main>
+
+      {/* Template Gallery Modal */}
+      <TemplateGallery 
+        isOpen={isGalleryOpen} 
+        onClose={() => setIsGalleryOpen(false)}
+        onSelectTemplate={handleLoadTemplate}
+        currentMapState={{
+          style: mapStyle,
+          data: mapData,
+          titleSettings: titleSettings
+        }}
+      />
     </div>
   );
 };

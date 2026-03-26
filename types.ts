@@ -57,6 +57,18 @@ export interface Suggestion {
   icon?: any;
 }
 
+export interface MapTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: 'Demographics' | 'Economics' | 'Politics' | 'Environment' | 'Other';
+  style: MapStyle;
+  data: MapDataState;
+  titleSettings: TitleSettings;
+  thumbnailGradient: string;
+  isPopular?: boolean;
+}
+
 export const PALETTES: Record<PaletteType, string[]> = {
   ocean: ['#f0f9ff', '#bae6fd', '#0ea5e9', '#0284c7', '#0c4a6e'],
   sunset: ['#fefce8', '#fde047', '#f97316', '#dc2626', '#7f1d1d'],
@@ -93,7 +105,6 @@ export const DEFAULT_TITLE_SETTINGS: TitleSettings = {
   size: 'large',
 };
 
-// Sample Data for "Auto-Fix" simulation
 export const SAMPLE_DATASET: MapDataState = {
   metric: "Digital Index",
   unit: "Score",
@@ -104,3 +115,92 @@ export const SAMPLE_DATASET: MapDataState = {
     '360': 62, '792': 75, '682': 72, '410': 93, '702': 96, '756': 94
   }
 };
+
+export const PRESET_TEMPLATES: MapTemplate[] = [
+  {
+    id: 'pop-density',
+    name: 'World Population',
+    description: 'Global population density distribution with high contrast scaling.',
+    category: 'Demographics',
+    isPopular: true,
+    thumbnailGradient: 'linear-gradient(135deg, #0ea5e9, #0c4a6e)',
+    style: { ...DEFAULT_MAP_STYLE, palette: 'ocean', classificationMethod: 'quantile', classesCount: 7 },
+    data: { 
+      metric: 'Population Density', unit: 'per km²', 
+      values: { '840': 36, '156': 153, '356': 464, '360': 151, '643': 9, '076': 25, '566': 226, '050': 1265, '276': 240, '392': 347 }
+    },
+    titleSettings: { ...DEFAULT_TITLE_SETTINGS, title: 'World Population Density', subtitle: '2024 Census Data' }
+  },
+  {
+    id: 'econ-growth',
+    name: 'Economic Growth',
+    description: 'GDP growth rates highlighted in emerald tones.',
+    category: 'Economics',
+    isPopular: true,
+    thumbnailGradient: 'linear-gradient(135deg, #22c55e, #14532d)',
+    style: { ...DEFAULT_MAP_STYLE, palette: 'forest', classificationMethod: 'equal', classesCount: 5 },
+    data: {
+      metric: 'GDP Growth', unit: '%',
+      values: { '840': 2.1, '156': 5.2, '356': 6.8, '360': 5.0, '702': 1.1, '276': 0.5, '826': 0.1, '682': 3.1, '076': 2.9 }
+    },
+    titleSettings: { ...DEFAULT_TITLE_SETTINGS, title: 'Global Economic Outlook', subtitle: 'Annual GDP Growth Rate (%)' }
+  },
+  {
+    id: 'climate-zones',
+    name: 'Climate Zones',
+    description: 'Categorical visualization of major climate regions.',
+    category: 'Environment',
+    thumbnailGradient: 'linear-gradient(135deg, #f97316, #06b6d4)',
+    style: { ...DEFAULT_MAP_STYLE, palette: 'sunset', classificationMethod: 'natural', classesCount: 4 },
+    data: {
+      metric: 'Avg Temperature', unit: '°C',
+      values: { '124': -5, '643': -3, '578': 1, '276': 9, '840': 12, '156': 14, '076': 24, '356': 26, '566': 28, '360': 27, '036': 21 }
+    },
+    titleSettings: { ...DEFAULT_TITLE_SETTINGS, title: 'Average Temperatures', subtitle: 'Annual Mean' }
+  },
+  {
+    id: 'election-results',
+    name: 'Election Results',
+    description: 'Diverging red-blue scale for political analysis.',
+    category: 'Politics',
+    thumbnailGradient: 'linear-gradient(90deg, #ef4444 50%, #3b82f6 50%)',
+    style: { 
+      ...DEFAULT_MAP_STYLE, 
+      palette: 'custom', 
+      customColors: ['#3b82f6', '#ef4444'], // Blue to Red
+      classificationMethod: 'equal', 
+      classesCount: 3 
+    },
+    data: {
+      metric: 'Political Leaning', unit: 'Index',
+      values: { '840': 48, '826': 55, '276': 40, '250': 60, '380': 35, '724': 65, '124': 70, '036': 55 }
+    },
+    titleSettings: { ...DEFAULT_TITLE_SETTINGS, title: 'Political Landscape', subtitle: 'Projected Outcomes' }
+  },
+  {
+    id: 'tourism-rank',
+    name: 'Tourism Rankings',
+    description: 'Top travel destinations highlighted.',
+    category: 'Economics',
+    thumbnailGradient: 'linear-gradient(135deg, #f0abfc, #a855f7)',
+    style: { ...DEFAULT_MAP_STYLE, palette: 'sunset', classificationMethod: 'quantile', classesCount: 6, backgroundColor: '#1e1b4b' },
+    data: {
+      metric: 'Visitors', unit: 'Millions',
+      values: { '250': 89, '724': 83, '840': 79, '156': 65, '380': 64, '792': 51, '484': 45, '764': 39, '276': 39, '826': 39 }
+    },
+    titleSettings: { ...DEFAULT_TITLE_SETTINGS, title: 'Global Tourism', subtitle: 'International Tourist Arrivals' }
+  },
+  {
+    id: 'tech-adoption',
+    name: 'Tech Adoption',
+    description: 'Monochrome style showing digital infrastructure.',
+    category: 'Other',
+    thumbnailGradient: 'linear-gradient(135deg, #cbd5e1, #0f172a)',
+    style: { ...DEFAULT_MAP_STYLE, palette: 'monochrome', classificationMethod: 'natural', classesCount: 5 },
+    data: {
+      metric: 'Adoption Rate', unit: '%',
+      values: { '410': 98, '392': 95, '752': 96, '246': 97, '840': 92, '276': 90, '036': 91, '702': 99 }
+    },
+    titleSettings: { ...DEFAULT_TITLE_SETTINGS, title: 'Digital Infrastructure', subtitle: 'Technology Adoption Index' }
+  }
+];
